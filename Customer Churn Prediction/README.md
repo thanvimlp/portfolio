@@ -24,4 +24,4 @@ Python, Pandas, NumPy, Matplotlib, Seaborn, Plotly, Scikit-learn
 ## 📎 Project Resources
 - 📊 [Dataset](PASTE_DATASET_LINK_HERE)
 - 📓 [Jupyter Notebook (.ipynb)](PASTE_IPYNB_LINK_HERE)
-- 📄 [Detailed Project Report](PASTE_REPORT_LINK_HERE)
+- 📄 [Detailed Project Report](/Customer%20Churn%20Prediction/Customer_Churn_Project_Writeup.docx.pdf/)
