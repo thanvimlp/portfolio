@@ -22,6 +22,6 @@ Python, Pandas, NumPy, Matplotlib, Seaborn, Plotly, Scikit-learn
 5. **Insights & Recommendations** — translated model results into business actions
 
 ## 📎 Project Resources
-- 📊 [Dataset](PASTE_DATASET_LINK_HERE)
-- 📓 [Jupyter Notebook (.ipynb)](PASTE_IPYNB_LINK_HERE)
+- 📊 [Dataset](/Customer%20Churn%20Prediction/Telco-Customer-data.csv/)
+- 📓 [Jupyter Notebook (.ipynb)](/Customer%20Churn%20Prediction/CustomerChurn%20.ipynb/)
 - 📄 [Detailed Project Report](/Customer%20Churn%20Prediction/Customer_Churn_Project_Writeup.docx.pdf/)
