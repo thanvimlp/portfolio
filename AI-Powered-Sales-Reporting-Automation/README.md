@@ -92,7 +92,7 @@ Preparing daily sales reports manually can take time and involve repetitive calc
 
 ### 3. Automated Sales Report
 
-![Automated Sales Report]()
+![Automated Sales Report](1784776780175.jpeg)
 
 ## Project Status
 
