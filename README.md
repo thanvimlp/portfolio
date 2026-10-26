@@ -1,6 +1,6 @@
 # THANVEER AHMED T M's Portfolio
 
-Welcome to my data portfolio! Here, I document a summary of my projects in the data field.
+Welcome to my  portfolio! Here, I documented a summary of my projects.
 
 | Project Link | Completion Date | Tools | Project Description |
 |---|---|---|---|
