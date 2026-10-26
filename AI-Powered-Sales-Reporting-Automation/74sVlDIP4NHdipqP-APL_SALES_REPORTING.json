@@ -1,0 +1,303 @@
+{
+  "name": "APL SALES REPORTING",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 13
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "0feb2a6c-285f-47e0-9e46-0ee20d30f7d7",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1twXFad1jXwI3hKCfKebrYiegZW39P63HUbsymzzRrto",
+          "mode": "list",
+          "cachedResultName": "apl_sales_2026",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1twXFad1jXwI3hKCfKebrYiegZW39P63HUbsymzzRrto/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Daily_Sales",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1twXFad1jXwI3hKCfKebrYiegZW39P63HUbsymzzRrto/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        208,
+        0
+      ],
+      "id": "c8ae99aa-c300-4658-b478-51412baf26c0",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YeWTfRy97DnEVozM",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// =====================================\n// Read & Clean Google Sheet Data\n// =====================================\n\nconst rows = $input.all()\n.map(item => ({\n    date: String(item.json.date ?? \"\").trim(),\n    category: String(item.json.category ?? \"\").trim(),\n    brands: String(item.json.brands ?? \"\").trim(),\n    qty_sold: Number(item.json.qty_sold ?? 0),\n    net_sale: Number(item.json.net_sale ?? 0),\n    gross_sale: Number(item.json.gross_sale ?? 0)\n}))\n.filter(r =>\n    r.date !== \"\" &&\n    r.brands !== \"\"\n);\n\n// =====================================\n// Date Parser\n// =====================================\n\nfunction parseDate(str) {\n\n    const months = {\n        Jan:0, Feb:1, Mar:2, Apr:3,\n        May:4, Jun:5, Jul:6, Aug:7,\n        Sep:8, Oct:9, Nov:10, Dec:11\n    };\n\n    if (!str) return null;\n\n    const parts = str.trim().split(\"-\");\n\n    if (parts.length !== 3) return null;\n\n    const [day, month, year] = parts;\n\n    return new Date(\n        2000 + Number(year),\n        months[month],\n        Number(day)\n    );\n\n}\n\n// =====================================\n// Latest Date\n// =====================================\n\nconst dates = [...new Set(rows.map(r => r.date))]\n.filter(d => parseDate(d));\n\ndates.sort((a,b)=>parseDate(a)-parseDate(b));\n\nconst latestDate = dates.at(-1);\n\n// =====================================\n// Yesterday Rows\n// =====================================\n\nconst yesterdayRows = rows.filter(r =>\n    r.date === latestDate\n);\n\n// =====================================\n// Month Rows\n// =====================================\n\nconst latest = parseDate(latestDate);\n\nconst monthRows = rows.filter(r => {\n\n    const d = parseDate(r.date);\n\n    return d &&\n        d.getMonth() === latest.getMonth() &&\n        d.getFullYear() === latest.getFullYear();\n\n});\n\n// =====================================\n// Helper\n// =====================================\n\nfunction sum(arr,key){\n\n    return arr.reduce(\n        (total,row)=>total+Number(row[key]||0),\n        0\n    );\n\n}\n\n// =====================================\n// Yesterday Totals\n// =====================================\n\nconst yesterdayNet = sum(yesterdayRows,\"net_sale\");\n\nconst yesterdayGross = sum(yesterdayRows,\"gross_sale\");\n\nconst yesterdayQty = sum(yesterdayRows,\"qty_sold\");\n\n// =====================================\n// Yesterday Category\n// =====================================\n\nconst ethnicRows = yesterdayRows.filter(\n    r=>r.category===\"Ethnic Wear\"\n);\n\nconst westernRows = yesterdayRows.filter(\n    r=>r.category===\"Western Wear\"\n);\n\nconst ethnicNet = sum(ethnicRows,\"net_sale\");\n\nconst westernNet = sum(westernRows,\"net_sale\");\n\nconst ethnicQty = sum(ethnicRows,\"qty_sold\");\n\nconst westernQty = sum(westernRows,\"qty_sold\");\n\n// =====================================\n// Month Totals\n// =====================================\n\nconst monthNet = sum(monthRows,\"net_sale\");\n\nconst monthGross = sum(monthRows,\"gross_sale\");\n\nconst monthQty = sum(monthRows,\"qty_sold\");\n\n// =====================================\n// Brand Statistics\n// =====================================\n\nconst brandStats = {};\n\nmonthRows.forEach(r=>{\n\n    if(!brandStats[r.brands]){\n\n        brandStats[r.brands]={\n            brand:r.brands,\n            monthQty:0,\n            monthNet:0,\n            yesterdayQty:0,\n            yesterdayNet:0\n        };\n\n    }\n\n    brandStats[r.brands].monthQty += r.qty_sold;\n\n    brandStats[r.brands].monthNet += r.net_sale;\n\n});\n\nyesterdayRows.forEach(r=>{\n\n    if(!brandStats[r.brands]) return;\n\n    brandStats[r.brands].yesterdayQty += r.qty_sold;\n\n    brandStats[r.brands].yesterdayNet += r.net_sale;\n\n});\n\nconst sortedBrands = Object.values(brandStats)\n.sort((a,b)=>b.monthNet-a.monthNet);\n\n// =====================================\n// Yesterday Top Brand\n// =====================================\n\nconst topYesterdayBrand = sortedBrands\n.slice()\n.sort((a,b)=>b.yesterdayNet-a.yesterdayNet)[0];\n\n// =====================================\n// Month Category\n// =====================================\n\nconst monthEthnic = sum(\n    monthRows.filter(r=>r.category===\"Ethnic Wear\"),\n    \"net_sale\"\n);\n\nconst monthWestern = sum(\n    monthRows.filter(r=>r.category===\"Western Wear\"),\n    \"net_sale\"\n);\n\nconst monthEthnicQty = sum(\n    monthRows.filter(r=>r.category===\"Ethnic Wear\"),\n    \"qty_sold\"\n);\n\nconst monthWesternQty = sum(\n    monthRows.filter(r=>r.category===\"Western Wear\"),\n    \"qty_sold\"\n);\n\n// =====================================\n// Output\n// =====================================\n\nreturn [{\njson:{\n\nreportDate:latestDate,\n\nyesterdayNet,\n\nyesterdayGross,\n\nyesterdayQty,\n\nethnicNet,\n\nwesternNet,\n\nethnicQty,\n\nwesternQty,\n\nmonthNet,\n\nmonthGross,\n\nmonthQty,\n\nmonthEthnic,\n\nmonthWestern,\n\nmonthEthnicQty,\n\nmonthWesternQty,\n\ntopYesterdayBrand,\n\ntop3Brands:sortedBrands.slice(0,3),\n\nbrandSales:sortedBrands\n\n}\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        0
+      ],
+      "id": "65a84da1-5001-4506-ad46-8cd850c92bf4",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a Business Analyst working for Lifestyle Apparel Ladies (APL).\nReturn valid HTML only.\n\nEvery table MUST use\n\nborder=\"1\"\ncellpadding=\"6\"\ncellspacing=\"0\"\nstyle=\"border-collapse:collapse;width:100%;\"\n\nUse <th> for headers.\n\nUse <td> for values.\n\nEvery row must be inside its own <tr>.\n\nDo NOT create text tables.\nDo NOT use markdown tables.\nThe JSON below already contains all calculated values.\n\n{{ JSON.stringify($json, null, 2)\n}}\n\nDo NOT perform any calculations.\nUse ONLY the supplied values.\n\nGenerate a professional markdown report.\n\nRequirements:\n\n# Lifestyle Apparel Ladies (APL)\n\n## Daily Sales Performance Report\n\nReport Date: {{reportDate}}\n\n---\n\n## Yesterday's Performance\n\nDisplay:\n\n• Total Net Sales\n• Total Gross Sales\n• Total Quantity Sold\n\nFormat currency using ₹ and Indian comma format.\n\nExample:\n₹3,02,079\n\n---\n\n## Department Performance\n\nCreate a markdown table.\n\n| Department | Net Sales | Quantity |\n|------------|----------:|---------:|\n| Ethnic Wear | ₹... | ... |\n| Western Wear | ₹... | ... |\n\n---\n\n## Month-to-Date Performance\n\nDisplay:\n\n• Total Net Sales\n\n• Total Gross Sales\n\n• Total Quantity Sold\n\n---\n\n## Top 3 Brands (Month-to-Date)\n\nShow\n\n🥇 Brand — Net Sales\n\n🥈 Brand — Net Sales\n\n🥉 Brand — Net Sales\n\n---\n\n## Brand-wise Performance\n\nDisplay ALL brands sorted by Month-to-Date Net Sales.\n\nCreate an HTML table.\n\nUse ONLY these tags:\n\n<table border=\"1\" cellpadding=\"6\" cellspacing=\"0\" style=\"border-collapse:collapse;width:100%;\">\n\n<thead>\n\n<tr>\n\n<th>Brand</th>\n\n<th>Yesterday Qty</th>\n\n<th>Yesterday Net</th>\n\n<th>MTD Qty</th>\n\n<th>MTD Net</th>\n\n</tr>\n\n</thead>\n\n<tbody>\n\nOne <tr> for every object in brandSales.\n\n</tbody>\n\n</table>\n\nDo NOT use spaces or markdown to simulate a table.\n\nUse every object from brandSales.\nDo not omit any brands.\nKeep the order exactly as provided.\n\nCreate a table\n\n| Brand | Yesterday Qty | Yesterday Net | MTD Qty | MTD Net |\n\nSort by Month Net descending.\n\n---\n\n## Key Highlights\n\n• Yesterday's Highest Selling Brand\n\n• Yesterday's Total Sales\n\n• Best Performing Category (MTD)\n\n• Total Month Sales\n\n---\n\nFinish with\n\nGenerated automatically using n8n + Google Sheets + OpenAI.\n\nDo not output JSON.\nDo not explain anything.\nOnly output the report.\nGenerate the report as HTML suitable for an email. Use <h1>, <h2>, <table>, <tr>, <td>, and <strong> tags. Do not use Markdown.\"",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        624,
+        0
+      ],
+      "id": "afcb389c-8f6b-4348-a24f-12264510a2fe",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        624,
+        176
+      ],
+      "id": "9e1e75f8-1de6-44c7-a433-422920012ad3",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "thanveerahmedtm@gmail.com",
+        "subject": "=Lifestyle APL Daily Sales Report - {{ $('Code in JavaScript').item.json.reportDate }}",
+        "message": "={{$json.output}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        0
+      ],
+      "id": "8d94433c-e586-4d22-b225-fd2011bf122b",
+      "name": "Send a message",
+      "webhookId": "cf7e6f3e-f9dc-41c7-b9d3-1f8a81ce410f",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "UtuwU0UkHUa0u79k",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1twXFad1jXwI3hKCfKebrYiegZW39P63HUbsymzzRrto",
+          "mode": "list",
+          "cachedResultName": "apl_sales_2026",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1twXFad1jXwI3hKCfKebrYiegZW39P63HUbsymzzRrto/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1367304299,
+          "mode": "list",
+          "cachedResultName": "Weekly_target",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1twXFad1jXwI3hKCfKebrYiegZW39P63HUbsymzzRrto/edit#gid=1367304299"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Week",
+              "lookupValue": "={{ $json.currentWeek }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        192,
+        240
+      ],
+      "id": "8c61c796-049c-43ba-b69e-04eaf36fde1f",
+      "name": "Get row(s) in sheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YeWTfRy97DnEVozM",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const today = new Date();\n\n// Financial year starts on 1 April\nconst fyStart = new Date(today.getFullYear(), 3, 1);\n\n// If today is before 1 April, use last year's FY start\nif (today < fyStart) {\n  fyStart.setFullYear(fyStart.getFullYear() - 1);\n}\n\nconst diffDays = Math.floor((today - fyStart) / (1000 * 60 * 60 * 24));\nconst currentWeek = Math.floor(diffDays / 7) + 1;\n\nreturn [{\n  json: {\n    currentWeek\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        48,
+        240
+      ],
+      "id": "6cf5b453-5f7d-4003-89c4-e5055c726977",
+      "name": "Selecting latest Week"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        368,
+        224
+      ],
+      "id": "5c90e8fb-ed9f-4daf-8a5e-a659e82f91c9",
+      "name": "Merge"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Selecting latest Week",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet1": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Selecting latest Week": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Schedule Trigger": {
+      "recurrenceRules": [
+        null
+      ],
+      "recurrenceRuleSignatures": [
+        null
+      ]
+    }
+  },
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

@@ -1,0 +1,211 @@
+{
+  "name": "Reporting",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 13
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -352,
+        -32
+      ],
+      "id": "609c8a63-6e32-4211-b262-02a9e24024f3",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "16CDsb-n1_dIg91Rh8QeZ6oWz3njDi7FJdz2iOb-P_E4",
+          "mode": "list",
+          "cachedResultName": "Sales Data 2026",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/16CDsb-n1_dIg91Rh8QeZ6oWz3njDi7FJdz2iOb-P_E4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/16CDsb-n1_dIg91Rh8QeZ6oWz3njDi7FJdz2iOb-P_E4/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -144,
+        -32
+      ],
+      "id": "a03f010b-0f5a-4b11-b657-3918073d081c",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "dETZCQmeEYfP615y",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// =====================================\n// Read & Clean Google Sheet Data\n// =====================================\n\nconst rows = $input.all()\n.map(item => ({\n    date: String(item.json.date ?? \"\").trim(),\n    category: String(item.json.category ?? \"\").trim(),\n    brands: String(item.json.brands ?? \"\").trim(),\n    qty_sold: Number(item.json.qty_sold ?? 0),\n    net_sale: Number(item.json.net_sale ?? 0),\n    gross_sale: Number(item.json.gross_sale ?? 0)\n}))\n.filter(r =>\n    r.date !== \"\" &&\n    r.brands !== \"\"\n);\n\n// =====================================\n// Date Parser\n// =====================================\n\nfunction parseDate(str) {\n\n    const months = {\n        Jan:0, Feb:1, Mar:2, Apr:3,\n        May:4, Jun:5, Jul:6, Aug:7,\n        Sep:8, Oct:9, Nov:10, Dec:11\n    };\n\n    if (!str) return null;\n\n    const parts = str.trim().split(\"-\");\n\n    if (parts.length !== 3) return null;\n\n    const [day, month, year] = parts;\n\n    return new Date(\n        2000 + Number(year),\n        months[month],\n        Number(day)\n    );\n\n}\n\n// =====================================\n// Latest Date\n// =====================================\n\nconst dates = [...new Set(rows.map(r => r.date))]\n.filter(d => parseDate(d));\n\ndates.sort((a,b)=>parseDate(a)-parseDate(b));\n\nconst latestDate = dates.at(-1);\n\n// =====================================\n// Yesterday Rows\n// =====================================\n\nconst yesterdayRows = rows.filter(r =>\n    r.date === latestDate\n);\n\n// =====================================\n// Month Rows\n// =====================================\n\nconst latest = parseDate(latestDate);\n\nconst monthRows = rows.filter(r => {\n\n    const d = parseDate(r.date);\n\n    return d &&\n        d.getMonth() === latest.getMonth() &&\n        d.getFullYear() === latest.getFullYear();\n\n});\n\n// =====================================\n// Helper\n// =====================================\n\nfunction sum(arr,key){\n\n    return arr.reduce(\n        (total,row)=>total+Number(row[key]||0),\n        0\n    );\n\n}\n\n// =====================================\n// Yesterday Totals\n// =====================================\n\nconst yesterdayNet = sum(yesterdayRows,\"net_sale\");\n\nconst yesterdayGross = sum(yesterdayRows,\"gross_sale\");\n\nconst yesterdayQty = sum(yesterdayRows,\"qty_sold\");\n\n// =====================================\n// Yesterday Category\n// =====================================\n\n\nconst heritageRows = yesterdayRows.filter(\n    r => r.category === \"Heritage Collection\"\n);\n\nconst urbanRows = yesterdayRows.filter(\n    r => r.category === \"Urban Collection\"\n);\n\nconst heritageNet = sum(heritageRows, \"net_sale\");\n\nconst urbanNet = sum(urbanRows, \"net_sale\");\n\nconst heritageQty = sum(heritageRows, \"qty_sold\");\n\nconst urbanQty = sum(urbanRows, \"qty_sold\");\n// =====================================\n// Month Totals\n// =====================================\n\nconst monthNet = sum(monthRows,\"net_sale\");\n\nconst monthGross = sum(monthRows,\"gross_sale\");\n\nconst monthQty = sum(monthRows,\"qty_sold\");\n\n// =====================================\n// Brand Statistics\n// =====================================\n\nconst brandStats = {};\n\nmonthRows.forEach(r=>{\n\n    if(!brandStats[r.brands]){\n\n        brandStats[r.brands]={\n            brand:r.brands,\n            monthQty:0,\n            monthNet:0,\n            yesterdayQty:0,\n            yesterdayNet:0\n        };\n\n    }\n\n    brandStats[r.brands].monthQty += r.qty_sold;\n\n    brandStats[r.brands].monthNet += r.net_sale;\n\n});\n\nyesterdayRows.forEach(r=>{\n\n    if(!brandStats[r.brands]) return;\n\n    brandStats[r.brands].yesterdayQty += r.qty_sold;\n\n    brandStats[r.brands].yesterdayNet += r.net_sale;\n\n});\n\nconst sortedBrands = Object.values(brandStats)\n.sort((a,b)=>b.monthNet-a.monthNet);\n\n// =====================================\n// Yesterday Top Brand\n// =====================================\n\nconst topYesterdayBrand = sortedBrands\n.slice()\n.sort((a,b)=>b.yesterdayNet-a.yesterdayNet)[0];\n\n// =====================================\n// Month Category\n// =====================================\n\n\nconst monthHeritage = sum(\n    monthRows.filter(r => r.category === \"Heritage Collection\"),\n    \"net_sale\"\n);\n\nconst monthUrban = sum(\n    monthRows.filter(r => r.category === \"Urban Collection\"),\n    \"net_sale\"\n);\n\nconst monthHeritageQty = sum(\n    monthRows.filter(r => r.category === \"Heritage Collection\"),\n    \"qty_sold\"\n);\n\nconst monthUrbanQty = sum(\n    monthRows.filter(r => r.category === \"Urban Collection\"),\n    \"qty_sold\"\n);\n\n// =====================================\n// Output\n// =====================================\n\nreturn [{\njson:{\n\nreportDate:latestDate,\n\nyesterdayNet,\n\nyesterdayGross,\n\nyesterdayQty,\n\nheritageNet,\n\nurbanNet,\n\nheritageQty,\n\nurbanQty,\n\nmonthNet,\n\nmonthGross,\n\nmonthQty,\n\nmonthHeritage,\n\nmonthUrban,\n\nmonthHeritageQty,\n\nmonthUrbanQty,\n\ntopYesterdayBrand,\n\ntop3Brands:sortedBrands.slice(0,3),\n\nbrandSales:sortedBrands\n\n}\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        64,
+        -32
+      ],
+      "id": "eb91fc83-0692-4f25-af2a-9b3bbbd1572e",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a Business Analyst working for Style Avenue Mens Fashion Apparel(MFA).\nReturn valid HTML only.\n\nEvery table MUST use\n\nborder=\"1\"\ncellpadding=\"6\"\ncellspacing=\"0\"\nstyle=\"border-collapse:collapse;width:100%;\"\n\nUse <th> for headers.\n\nUse <td> for values.\n\nEvery row must be inside its own <tr>.\n\nDo NOT create text tables.\nDo NOT use markdown tables.\nThe JSON below already contains all calculated values.\n\n{{ JSON.stringify($json, null, 2)\n}}\n\nDo NOT perform any calculations.\nUse ONLY the supplied values.\n\nGenerate a professional markdown report.\n\nRequirements:\n\n# Men's Fashion Apparel (MFA)\n\n## Daily Sales Performance Report\n\nReport Date: {{reportDate}}\n\n---\n\n## Yesterday's Performance\n\nDisplay:\n\n• Total Net Sales\n• Total Gross Sales\n• Total Quantity Sold\n\nFormat currency using ₹ and Indian comma format.\n\nExample:\n₹3,02,079\n\n---\n\n## Department Performance\n\nCreate a markdown table.\n\n| Department | Net Sales | Quantity |\n|------------|----------:|---------:|\n| Heritage Collection | ₹... | ... |\n| Urban Collection | ₹... | ... |\n\n---\n\n## Month-to-Date Performance\n\nDisplay:\n\n• Total Net Sales\n\n• Total Gross Sales\n\n• Total Quantity Sold\n\n---\n\n## Top 3 Brands (Month-to-Date)\n\nShow\n\n🥇 Brand — Net Sales\n\n🥈 Brand — Net Sales\n\n🥉 Brand — Net Sales\n\n---\n\n## Brand-wise Performance\n\nDisplay ALL brands sorted by Month-to-Date Net Sales.\n\nCreate an HTML table.\n\nUse ONLY these tags:\n\n<table border=\"1\" cellpadding=\"6\" cellspacing=\"0\" style=\"border-collapse:collapse;width:100%;\">\n\n<thead>\n\n<tr>\n\n<th>Brand</th>\n\n<th>Yesterday Qty</th>\n\n<th>Yesterday Net</th>\n\n<th>MTD Qty</th>\n\n<th>MTD Net</th>\n\n</tr>\n\n</thead>\n\n<tbody>\n\nOne <tr> for every object in brandSales.\n\n</tbody>\n\n</table>\n\nDo NOT use spaces or markdown to simulate a table.\n\nUse every object from brandSales.\nDo not omit any brands.\nKeep the order exactly as provided.\n\nCreate a table\n\n| Brand | Yesterday Qty | Yesterday Net | MTD Qty | MTD Net |\n\nSort by Month Net descending.\n\n---\n\n## Key Highlights\n\n• Yesterday's Highest Selling Brand\n\n• Yesterday's Total Sales\n\n• Best Performing Category (MTD)\n\n• Total Month Sales\n\n---\n\nFinish with\n\nGenerated automatically using n8n + Google Sheets + OpenAI.\n\nDo not output JSON.\nDo not explain anything.\nOnly output the report.\nGenerate the report as HTML suitable for an email. Use <h1>, <h2>, <table>, <tr>, <td>, and <strong> tags. Do not use Markdown.\"",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        272,
+        -32
+      ],
+      "id": "634f6925-4e7e-46e6-889f-d5d0c1aa5d1d",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        272,
+        144
+      ],
+      "id": "2ed895d9-ad77-4dcd-8d00-d7443d35df0a",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "thanveerahmedtm@gmail.com",
+        "subject": "=Style Avenue MFA Daily Sales Report - {{ $('Code in JavaScript').item.json.reportDate }}",
+        "message": "={{$json.output}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        528,
+        -32
+      ],
+      "id": "4c665937-2e12-4e3b-aad7-5eb9f77bcae9",
+      "name": "Send a message",
+      "webhookId": "cf7e6f3e-f9dc-41c7-b9d3-1f8a81ce410f",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "UtuwU0UkHUa0u79k",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Schedule Trigger": {
+      "recurrenceRules": [
+        null
+      ],
+      "recurrenceRuleSignatures": [
+        null
+      ]
+    }
+  },
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

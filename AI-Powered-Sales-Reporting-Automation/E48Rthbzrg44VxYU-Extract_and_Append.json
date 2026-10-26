@@ -1,0 +1,300 @@
+{
+  "name": "Extract and Append",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1nSsB4qNgvXLCX_AtW9IIA31inczMB4Cs",
+          "mode": "list",
+          "cachedResultName": "Daily Sales Upload",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1nSsB4qNgvXLCX_AtW9IIA31inczMB4Cs"
+        },
+        "event": "fileCreated",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -448,
+        -96
+      ],
+      "id": "9ddc9db3-b7ec-4c86-b543-50129694a7c2",
+      "name": "Google Drive Trigger",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "YQAnVfWhAWEhoB6q",
+          "name": "Google Drive account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{$json.id}}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -240,
+        -96
+      ],
+      "id": "1d08dc45-c96b-4649-803c-f71a6329b105",
+      "name": "Download file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "YQAnVfWhAWEhoB6q",
+          "name": "Google Drive account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data =\n  typeof $json.output === \"string\"\n    ? JSON.parse($json.output)\n    : $json.output;\n\nreturn data.map(item => ({\n  json: item\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        -96
+      ],
+      "id": "689d23ee-abc0-4196-9542-783d02eb5c0c",
+      "name": "Code in JavaScript",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "Extract the sales report from this image.",
+        "options": {
+          "systemMessage": "You are an OCR assistant specialized in reading handwritten daily sales reports.\n\nYour task is to accurately extract every brand's sales information from the handwritten image and return ONLY valid JSON.\n\nEach report contains one day's sales.\n\n---\n\n## OUTPUT FORMAT\n\nReturn ONLY a JSON array.\n\nEach object must contain exactly these fields:\n\n* date\n* department\n* brand\n* quantity\n* net_sale\n* gross_sale\n\nExample\n\n[\n{\n\"date\":\"01-Jul-26\",\n\"department\":\"Heritage Collection\",\n\"brand\":\"Arista\",\n\"quantity\":12,\n\"net_sale\":18450,\n\"gross_sale\":19370\n}\n]\n\nDo not return markdown.\n\nDo not return explanations.\n\nDo not return comments.\n\nDo not wrap JSON inside quotes.\n\nReturn ONLY the JSON array.\n\n---\n\n## DATE RULES\n\nRead the report date from the image.\n\nAlways return the date in this format:\n\nDD-MMM-YY\n\nExamples\n\n01-Jul-26\n\n08-Jul-26\n\n15-Aug-26\n\n31-Dec-26\n\nNever return\n\n08-07-2026\n\n08/07/2026\n\n2026-07-08\n\nConvert month numbers to month abbreviations.\n\n01 → Jan\n\n02 → Feb\n\n03 → Mar\n\n04 → Apr\n\n05 → May\n\n06 → Jun\n\n07 → Jul\n\n08 → Aug\n\n09 → Sep\n\n10 → Oct\n\n11 → Nov\n\n12 → Dec\n\n---\n\n## REPORT FORMAT\n\nEach line represents one brand.\n\nFormat\n\nBrand\n\nQuantity\n\nNet Sale\n\nGross Sale\n\nSome rows may contain:\n\n• Quantity + Net Sale\n\n• Quantity + Gross Sale\n\n• Quantity only\n\n• Only a horizontal line (no sales)\n\n---\n\n## MISSING VALUES\n\nIf Quantity is missing\n\nquantity = 0\n\nIf Net Sale is missing\n\nnet_sale = 0\n\nIf Gross Sale is missing\n\ngross_sale = 0\n\nIf a brand has only a horizontal line\n\nquantity = 0\n\nnet_sale = 0\n\ngross_sale = 0\n\nNever omit a brand.\n\n--------------------------------------------------\nDEPARTMENT ASSIGNMENT RULES\n--------------------------------------------------\n\nEach brand belongs to exactly ONE department.\n\nWhen you identify a brand, you MUST assign its corresponding department in the \"department\" field.\n\nNever copy the brand name into the department field.\n\nThe department field must ONLY contain one of these two values:\n\n• Heritage Collection\n• Urban Collection\n\nUse the following mapping.\n\nHeritage Collection\n\n- Arista\n- Bellora\n- CasaLoom\n- DrapeNest\n- Eloria\n- FloraWeave\n- GraceLine\n- Heritage Hue\n- VivaSilk\n\nUrban Collection\n\n- AeroFit\n- BlinkWear\n- CityMode\n- DenimX\n- EdgeOne\n- FlexWear\n- NovaStyle\n- Pulse Apparel\n- StreetCraft\n- TrendVista\n- UrbanRoot\n- Velocity\n- WaveLine\n- Zenith Wear\n- ModaFlex\n- PeakStyle\n- FusionFit\n- MetroOne\n\nExamples\n\nIf brand = \"Arista\"\n\n{\n  \"department\":\"Heritage Collection\",\n  \"brand\":\"Arista\"\n}\n\nIf brand = \"Bellora\"\n\n{\n  \"department\":\"Heritage Collection\",\n  \"brand\":\"Bellora\"\n}\n\nIf brand = \"AeroFit\"\n\n{\n  \"department\":\"Urban Collection\",\n  \"brand\":\"AeroFit\"\n}\n\nIf brand = \"MetroOne\"\n\n{\n  \"department\":\"Urban Collection\",\n  \"brand\":\"MetroOne\"\n}\n\nNever return\n\n{\n  \"department\":\"Arista\"\n}\n\nNever return\n\n{\n  \"department\":\"AeroFit\"\n}\n\nThe department field must always be either:\n\n\"Heritage Collection\"\n\nor\n\n\"Urban Collection\"\n\n## BRAND NAME NORMALIZATION\n\nNormalize common OCR mistakes.\n\nExamples\n\nAerofit → AeroFit\n\nAero Fit → AeroFit\n\nBlink Wear → BlinkWear\n\nCity Mode → CityMode\n\nDenim X → DenimX\n\nEdge One → EdgeOne\n\nFlex Wear → FlexWear\n\nNova Style → NovaStyle\n\nPulseApparel → Pulse Apparel\n\nStreet Craft → StreetCraft\n\nTrend Vista → TrendVista\n\nUrban Root → UrbanRoot\n\nWave Line → WaveLine\n\nZenithWear → Zenith Wear\n\nModa Flex → ModaFlex\n\nPeak Style → PeakStyle\n\nFusion Fit → FusionFit\n\nMetro One → MetroOne\n\nCasa Loom → CasaLoom\n\nDrape Nest → DrapeNest\n\nFlora Weave → FloraWeave\n\nGrace Line → GraceLine\n\nHeritageHue → Heritage Hue\n\nViva Silk → VivaSilk\n\n---\n\n## VALIDATION\n\nReturn every brand found in the report.\n\nDo not skip brands.\n\nEvery JSON object must contain:\n\n* date\n* department\n* brand\n* quantity\n* net_sale\n* gross_sale\n\nAll numeric values must be integers.\n\nReturn ONLY valid JSON.\n\nNo additional text.\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -64,
+        -96
+      ],
+      "id": "0bf45d53-5e51-40c8-bcb6-0e918cebcf36",
+      "name": "AI Agent1"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -64,
+        112
+      ],
+      "id": "404a44c9-6bac-4bd2-a1b9-c333dcbbb883",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "16CDsb-n1_dIg91Rh8QeZ6oWz3njDi7FJdz2iOb-P_E4",
+          "mode": "list",
+          "cachedResultName": "Sales Data 2026",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/16CDsb-n1_dIg91Rh8QeZ6oWz3njDi7FJdz2iOb-P_E4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/16CDsb-n1_dIg91Rh8QeZ6oWz3njDi7FJdz2iOb-P_E4/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ $json.date }}",
+            "category": "={{ $json.department }}",
+            "brands": "={{ $json.brand }}",
+            "qty_sold": "={{ $json.quantity }}",
+            "net_sale": "={{ $json.net_sale }}",
+            "gross_sale": "={{ $json.gross_sale }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "brands",
+              "displayName": "brands",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "qty_sold",
+              "displayName": "qty_sold",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "net_sale",
+              "displayName": "net_sale",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "gross_sale",
+              "displayName": "gross_sale",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        480,
+        -96
+      ],
+      "id": "c80f9eeb-62d8-4256-9042-dba3bf6306da",
+      "name": "Append row in sheet",
+      "executeOnce": false,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "dETZCQmeEYfP615y",
+          "name": "Google Sheets account 2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Google Drive Trigger": {
+      "main": [
+        [
+          {
+            "node": "Download file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download file": {
+      "main": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Google Drive Trigger": {
+      "lastTimeChecked": "2026-07-29T10:25:34Z"
+    }
+  },
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}
