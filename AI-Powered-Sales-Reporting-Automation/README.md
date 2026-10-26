@@ -84,15 +84,15 @@ Preparing daily sales reports manually can take time and involve repetitive calc
 
 ### 1. Daily Sales Reporting Workflow
 
-![Daily Sales Reporting Workflow](1784776778957.jpeg)
+![Daily Sales Reporting Workflow](1784776779009.jpeg)
 
-### 2. Automated Sales Report
+### 2. Sales Data Processing Workflow
+
+![Sales Data Processing Workflow](1784776778957.jpeg)
+
+### 3. Automated Sales Report
 
 ![Automated Sales Report]()
-
-### 3. Sales Data Processing Workflow
-
-![Sales Data Processing Workflow](./screenshots/sales-data-processing-workflow.png)
 
 ## Project Status
 
